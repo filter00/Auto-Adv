@@ -1,22 +1,23 @@
 import os
+import asyncio
+from threading import Thread
+from flask import Flask, redirect
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from flask import Flask, redirect
-from threading import Thread
 from motor.motor_asyncio import AsyncIOMotorClient
-import asyncio
 
 API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "")  # Without @
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "")  # without @
 
-# Database
-client = AsyncIOMotorClient(DATABASE_URL)
-db = client['database']  # spelling fixed
+# Initialize MongoDB
+client_db = AsyncIOMotorClient(DATABASE_URL)
+db = client_db['database']
 groups = db['group_id']
 
+# Initialize bot client
 bot = Client(
     "deletebot",
     api_id=API_ID,
@@ -28,12 +29,9 @@ bot = Client(
 
 @bot.on_message(filters.command("thewarriorsreal") & filters.private)
 async def start(_, message):
-    button = [[
-        InlineKeyboardButton(
-            "🎈 Aᴅᴅ ʏᴏᴜʀ Gʀᴏᴜᴘ 🎈", 
-            url=f"https://t.me/{BOT_USERNAME}?startgroup=true"
-        ),
-    ]]
+    button = [
+        [InlineKeyboardButton("🎈 Aᴅᴅ ʏᴏᴜʀ Gʀᴏᴜᴘ 🎈", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")]
+    ]
     await message.reply_text(
         "I ᴀᴍ Aᴜᴛᴏ Dᴇʟᴇᴛᴇ Bᴏᴛ, I ᴄᴀɴ ᴅᴇʟᴇᴛᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘs ᴍᴇssᴀɢᴇs ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴀғᴛᴇʀ ᴀ ᴄᴇʀᴛᴀɪɴ ᴘᴇʀɪᴏᴅ ᴏғ ᴛɪᴍᴇ.",
         reply_markup=InlineKeyboardMarkup(button),
@@ -43,6 +41,8 @@ async def start(_, message):
 @bot.on_message(filters.command("set") & filters.group)
 async def set_delete_time(_, message):
     args = message.text.split()
+
+    # Check command argument validity
     if len(args) < 2 or not args.isdigit():
         await message.reply_text(
             "Dᴇʟᴇᴛᴇ ᴛɪᴍᴇ ᴍᴜsᴛ ʙᴇ ᴀɴ ɴᴜᴍʙᴇʀ...\n\n"
@@ -56,6 +56,7 @@ async def set_delete_time(_, message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
+    # Check if user is admin
     admin_ids = []
     async for member in bot.get_chat_members(chat_id, filter=enums.ChatMembersFilter.ADMINISTRATORS):
         admin_ids.append(member.user.id)
@@ -64,6 +65,7 @@ async def set_delete_time(_, message):
         await message.reply_text("Oɴʟʏ ɢʀᴏᴜᴘ ᴀᴅᴍɪɴs ᴄᴀɴ ᴅᴏ ᴛʜɪs....😘")
         return
 
+    # Update delete time in DB
     await groups.update_one(
         {"group_id": chat_id},
         {"$set": {"delete_time": delete_time}},
@@ -77,21 +79,23 @@ async def delete_message(_, message):
     group = await groups.find_one({"group_id": chat_id})
     if not group:
         return
+
     delete_time = int(group.get("delete_time", 0))
     if delete_time <= 0:
         return
+
     try:
         await asyncio.sleep(delete_time)
         await message.delete()
     except Exception as e:
-        print(f"An error occurred: {e} /n Group ID: {chat_id}")
+        print(f"An error occurred: {e} / Group ID: {chat_id}")
 
-# Flask setup for keepalive web server
+# Flask app for keepalive
 app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return redirect(f"https://telegram.me/{BOT_USERNAME}", code=302)
+    return redirect(f"https://t.me/{BOT_USERNAME}", code=302)
 
 def run():
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 8080)))
