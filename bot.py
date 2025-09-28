@@ -1,23 +1,23 @@
 import os
-import asyncio
-from threading import Thread
-from flask import Flask, redirect
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from flask import Flask, redirect
+from threading import Thread
 from motor.motor_asyncio import AsyncIOMotorClient
+import asyncio
+ 
+API_ID = os.environ.get("API_ID","")
+API_HASH = os.environ.get("API_HASH","")
+BOT_TOKEN = os.environ.get("BOT_TOKEN","")
+DATABASE_URL = os.environ.get("DATABASE_URL","")
+BOT_USERNAME = os.environ.get("BOT_USERNAME","") # Without @
 
-API_ID = int(os.environ.get("API_ID", 0))
-API_HASH = os.environ.get("API_HASH", "")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "")  # Without @
-
-# Database init
-mongo_client = AsyncIOMotorClient(DATABASE_URL)
-db = mongo_client['database']
+#database
+client = AsyncIOMotorClient(DATABASE_URL)
+db = client['databas']
 groups = db['group_id']
 
-# Bot init
+
 bot = Client(
     "deletebot",
     api_id=API_ID,
@@ -29,74 +29,71 @@ bot = Client(
 
 @bot.on_message(filters.command("thewarriorsreal") & filters.private)
 async def start(_, message):
-    buttons = [[
-        InlineKeyboardButton(
-            "🎈 Add your Group 🎈",
-            url=f"https://t.me/{BOT_USERNAME}?startgroup=true"
-        )
-    ]]
+    button = [[
+        InlineKeyboardButton("🎈 Aᴅᴅ ʏᴏᴜʀ Gʀᴏᴜᴘ 🎈", url=f""),
+        ]]
     await message.reply_text(
-        "I am Auto Delete Bot. I can delete your group messages automatically after a certain period of time.",
-        reply_markup=InlineKeyboardMarkup(buttons),
+        f"**I ᴀᴍ Aᴜᴛᴏ Dᴇʟᴇᴛᴇ Bᴏᴛ, I ᴄᴀɴ ᴅᴇʟᴇᴛᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘs ᴍᴇssᴀɢᴇs ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴀғᴛᴇʀ ᴀ ᴄᴇʀᴛᴀɪɴ ᴘᴇʀɪᴏᴅ ᴏғ ᴛɪᴍᴇ.**",
+        reply_markup=InlineKeyboardMarkup(button),
         parse_mode=enums.ParseMode.MARKDOWN
     )
+    
+@bot.on_message(filters.command("set"))
+async def set_delete_time(_, message):
 
-@bot.on_message(filters.command("set") & filters.group)
-async def set_delete_time_handler(_, message):
-    args = message.text.split()
-    if len(args) < 2 or not args.isdigit():
-        await message.reply_text(
-            "Delete time must be a number!\nExample: /set 10\nOnly seconds accepted."
-        )
+    # Check if the message is from a private chat
+    if message.chat.type in [enums.ChatType.PRIVATE]:
+        await message.reply("**Tʜɪs ᴄᴏᴍᴍᴀɴᴅ ᴄᴀɴ ᴏɴʟʏ ʙᴇ ᴜsᴇᴅ ɪɴ ɢʀᴏᴜᴘs....😒**")
         return
-
-    delete_time = int(args)
+    # Extract group_id and delete_time from the message
+    if len(message.text.split()) == 1:
+        await message.reply_text("**Dᴇʟᴇᴛᴇ ᴛɪᴍᴇ ᴍᴜsᴛ ʙᴇ ᴀɴ ɴᴜᴍʙᴇʀ...\n\nExᴀᴍᴘʟᴇ : /sᴇᴛ_ᴛɪᴍᴇ 10\nExᴀᴍᴘʟᴇ : /sᴇᴛ_ᴛɪᴍᴇ 20\nExᴀᴍᴘʟᴇ : /sᴇᴛ_ᴛɪᴍᴇ 30\n\nOɴʟʏ Sᴇᴄᴏᴜɴᴅ 🙌**")
+        return
+    delete_time = message.text.split()[1]
+    if not delete_time.isdigit():
+        await message.reply_text("**Dᴇʟᴇᴛᴇ ᴛɪᴍᴇ ᴍᴜsᴛ ʙᴇ ᴀɴ ɴᴜᴍʙᴇʀ...\n\nExᴀᴍᴘʟᴇ : /sᴇᴛ_ᴛɪᴍᴇ 10\nExᴀᴍᴘʟᴇ : /sᴇᴛ_ᴛɪᴍᴇ 20\nExᴀᴍᴘʟᴇ : /sᴇᴛ_ᴛɪᴍᴇ 30\n\nOɴʟʏ Sᴇᴄᴏᴜɴᴅ 🙌**")
+        return
     chat_id = message.chat.id
     user_id = message.from_user.id
-
-    admins = []
-    async for member in bot.get_chat_members(chat_id, filter=enums.ChatMembersFilter.ADMINISTRATORS):
-        admins.append(member.user.id)
-
-    if user_id not in admins:
-        await message.reply_text("Only group admins can do this.")
+    administrators = []
+    async for m in bot.get_chat_members(chat_id, filter=enums.ChatMembersFilter.ADMINISTRATORS):
+        administrators.append(m.user.id)
+    if user_id not in administrators:
+        await message.reply("**Oɴʟʏ ɢʀᴏᴜᴘ ᴀᴅᴍɪɴs ᴄᴀɴ ᴅᴏ ᴛʜɪs....😘**")
         return
-
     await groups.update_one(
         {"group_id": chat_id},
         {"$set": {"delete_time": delete_time}},
         upsert=True
     )
-    await message.reply_text(f"Successfully set message delete time to {delete_time} seconds.")
-
+    try:
+        await message.reply_text(f"**Sᴜᴄᴄᴇssғᴜʟʟʏ Sᴇᴛ {delete_time} Sᴇᴄᴏᴜɴᴅ....✅**")
+    except Exception as e:
+        await message.reply_text(f"Erorr: {e}")
 @bot.on_message(filters.group & filters.text)
-async def auto_delete_handler(_, message):
+async def delete_message(_, message):
     chat_id = message.chat.id
+    user_id = message.from_user.id
+    is_bot = message.from_user.is_bot
     group = await groups.find_one({"group_id": chat_id})
     if not group:
         return
-    delete_time = int(group.get("delete_time", 0))
-    if delete_time <= 0:
-        return
-
+    delete_time = int(group["delete_time"])
     try:
+        # Delete the message
         await asyncio.sleep(delete_time)
         await message.delete()
     except Exception as e:
-        print(f"Error deleting message {message.message_id} in group {chat_id}: {e}")
-
-# Flask app for keepalive
+        print(f"An error occurred: {e}/nGroup ID: {chat_id}")    
+# Flask configuration
 app = Flask(__name__)
-
 @app.route('/')
 def index():
-    return redirect(f"https://t.me/{BOT_USERNAME}", code=302)
+    return redirect(f"https://telegram.me/{BOT_USERNAME}", code=302)
 
-def run_flask():
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-
+def run():
+    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 8080)))
 if __name__ == "__main__":
-    # Start Flask in separate thread
-    Thread(target=run_flask).start()
-    # Run the bot
+    t = Thread(target=run)
+    t.start()
     bot.run()
