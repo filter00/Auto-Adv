@@ -10,14 +10,14 @@ API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-BOT_USERNAME = os.environ.get("BOT_USERNAME", "")  # without @
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "")  # Without @
 
-# Initialize MongoDB
-client_db = AsyncIOMotorClient(DATABASE_URL)
-db = client_db['database']
+# Database init
+mongo_client = AsyncIOMotorClient(DATABASE_URL)
+db = mongo_client['database']
 groups = db['group_id']
 
-# Initialize bot client
+# Bot init
 bot = Client(
     "deletebot",
     api_id=API_ID,
@@ -29,26 +29,24 @@ bot = Client(
 
 @bot.on_message(filters.command("thewarriorsreal") & filters.private)
 async def start(_, message):
-    button = [
-        [InlineKeyboardButton("🎈 Aᴅᴅ ʏᴏᴜʀ Gʀᴏᴜᴘ 🎈", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")]
-    ]
+    buttons = [[
+        InlineKeyboardButton(
+            "🎈 Add your Group 🎈",
+            url=f"https://t.me/{BOT_USERNAME}?startgroup=true"
+        )
+    ]]
     await message.reply_text(
-        "I ᴀᴍ Aᴜᴛᴏ Dᴇʟᴇᴛᴇ Bᴏᴛ, I ᴄᴀɴ ᴅᴇʟᴇᴛᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘs ᴍᴇssᴀɢᴇs ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴀғᴛᴇʀ ᴀ ᴄᴇʀᴛᴀɪɴ ᴘᴇʀɪᴏᴅ ᴏғ ᴛɪᴍᴇ.",
-        reply_markup=InlineKeyboardMarkup(button),
+        "I am Auto Delete Bot. I can delete your group messages automatically after a certain period of time.",
+        reply_markup=InlineKeyboardMarkup(buttons),
         parse_mode=enums.ParseMode.MARKDOWN
     )
 
 @bot.on_message(filters.command("set") & filters.group)
-async def set_delete_time(_, message):
+async def set_delete_time_handler(_, message):
     args = message.text.split()
-
-    # Check command argument validity
     if len(args) < 2 or not args.isdigit():
         await message.reply_text(
-            "Dᴇʟᴇᴛᴇ ᴛɪᴍᴇ ᴍᴜsᴛ ʙᴇ ᴀɴ ɴᴜᴍʙᴇʀ...\n\n"
-            "Exᴀᴍᴘʟᴇ: /set 10\n"
-            "Exᴀᴍᴘʟᴇ: /set 20\n"
-            "Oɴʟʏ Sᴇᴄᴏᴜɴᴅ 🙌"
+            "Delete time must be a number!\nExample: /set 10\nOnly seconds accepted."
         )
         return
 
@@ -56,30 +54,27 @@ async def set_delete_time(_, message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    # Check if user is admin
-    admin_ids = []
+    admins = []
     async for member in bot.get_chat_members(chat_id, filter=enums.ChatMembersFilter.ADMINISTRATORS):
-        admin_ids.append(member.user.id)
+        admins.append(member.user.id)
 
-    if user_id not in admin_ids:
-        await message.reply_text("Oɴʟʏ ɢʀᴏᴜᴘ ᴀᴅᴍɪɴs ᴄᴀɴ ᴅᴏ ᴛʜɪs....😘")
+    if user_id not in admins:
+        await message.reply_text("Only group admins can do this.")
         return
 
-    # Update delete time in DB
     await groups.update_one(
         {"group_id": chat_id},
         {"$set": {"delete_time": delete_time}},
         upsert=True
     )
-    await message.reply_text(f"Sᴜᴄᴄᴇssғᴜʟʟʏ Sᴇᴛ {delete_time} Sᴇᴄᴏᴜɴᴅ....✅")
+    await message.reply_text(f"Successfully set message delete time to {delete_time} seconds.")
 
 @bot.on_message(filters.group & filters.text)
-async def delete_message(_, message):
+async def auto_delete_handler(_, message):
     chat_id = message.chat.id
     group = await groups.find_one({"group_id": chat_id})
     if not group:
         return
-
     delete_time = int(group.get("delete_time", 0))
     if delete_time <= 0:
         return
@@ -88,7 +83,7 @@ async def delete_message(_, message):
         await asyncio.sleep(delete_time)
         await message.delete()
     except Exception as e:
-        print(f"An error occurred: {e} / Group ID: {chat_id}")
+        print(f"Error deleting message {message.message_id} in group {chat_id}: {e}")
 
 # Flask app for keepalive
 app = Flask(__name__)
@@ -97,10 +92,11 @@ app = Flask(__name__)
 def index():
     return redirect(f"https://t.me/{BOT_USERNAME}", code=302)
 
-def run():
-    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 8080)))
+def run_flask():
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
 if __name__ == "__main__":
-    t = Thread(target=run)
-    t.start()
+    # Start Flask in separate thread
+    Thread(target=run_flask).start()
+    # Run the bot
     bot.run()
