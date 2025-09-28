@@ -6,15 +6,15 @@ from threading import Thread
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 
-API_ID = os.environ.get("API_ID","")
-API_HASH = os.environ.get("API_HASH","")
-BOT_TOKEN = os.environ.get("BOT_TOKEN","")
-DATABASE_URL = os.environ.get("DATABASE_URL","")
-BOT_USERNAME = os.environ.get("BOT_USERNAME","") # Without @
+API_ID = int(os.environ.get("API_ID", 0))
+API_HASH = os.environ.get("API_HASH", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+BOT_USERNAME = os.environ.get("BOT_USERNAME", "")  # Without @
 
 # Database
 client = AsyncIOMotorClient(DATABASE_URL)
-db = client['databas']
+db = client['database']  # spelling fixed
 groups = db['group_id']
 
 bot = Client(
@@ -29,27 +29,25 @@ bot = Client(
 @bot.on_message(filters.command("thewarriorsreal") & filters.private)
 async def start(_, message):
     button = [[
-        InlineKeyboardButton("🎈 Aᴅᴅ ʏᴏᴜʀ Gʀᴏᴜᴘ 🎈", url=f""),
-        ]]
+        InlineKeyboardButton(
+            "🎈 Aᴅᴅ ʏᴏᴜʀ Gʀᴏᴜᴘ 🎈", 
+            url=f"https://t.me/{BOT_USERNAME}?startgroup=true"
+        ),
+    ]]
     await message.reply_text(
-        f"I ᴀᴍ Aᴜᴛᴏ Dᴇʟᴇᴛᴇ Bᴏᴛ, I ᴄᴀɴ ᴅᴇʟᴇᴛᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘs ᴍᴇssᴀɢᴇs ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴀғᴛᴇʀ ᴀ ᴄᴇʀᴛᴀɪɴ ᴘᴇʀɪᴏᴅ ᴏғ ᴛɪᴍᴇ.",
+        "I ᴀᴍ Aᴜᴛᴏ Dᴇʟᴇᴛᴇ Bᴏᴛ, I ᴄᴀɴ ᴅᴇʟᴇᴛᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘs ᴍᴇssᴀɢᴇs ᴀᴜᴛᴏᴍᴀᴛɪᴄᴀʟʟʏ ᴀғᴛᴇʀ ᴀ ᴄᴇʀᴛᴀɪɴ ᴘᴇʀɪᴏᴅ ᴏғ ᴛɪᴍᴇ.",
         reply_markup=InlineKeyboardMarkup(button),
         parse_mode=enums.ParseMode.MARKDOWN
     )
 
-@bot.on_message(filters.command("set"))
+@bot.on_message(filters.command("set") & filters.group)
 async def set_delete_time(_, message):
-
-    if message.chat.type == enums.ChatType.PRIVATE:
-        await message.reply("Tʜɪs ᴄᴏᴍᴍᴀɴᴅ ᴄᴀɴ ᴏɴʟʏ ʙᴇ ᴜsᴇᴅ ɪɴ ɢʀᴏᴜᴘs....😒")
-        return
-
     args = message.text.split()
     if len(args) < 2 or not args.isdigit():
         await message.reply_text(
             "Dᴇʟᴇᴛᴇ ᴛɪᴍᴇ ᴍᴜsᴛ ʙᴇ ᴀɴ ɴᴜᴍʙᴇʀ...\n\n"
-            "Exᴀᴍᴘʟᴇ: /sᴇᴛ 10\n"
-            "Exᴀᴍᴘʟᴇ: /sᴇᴛ 20\n"
+            "Exᴀᴍᴘʟᴇ: /set 10\n"
+            "Exᴀᴍᴘʟᴇ: /set 20\n"
             "Oɴʟʏ Sᴇᴄᴏᴜɴᴅ 🙌"
         )
         return
@@ -63,7 +61,7 @@ async def set_delete_time(_, message):
         admin_ids.append(member.user.id)
 
     if user_id not in admin_ids:
-        await message.reply("Oɴʟʏ ɢʀᴏᴜᴘ ᴀᴅᴍɪɴs ᴄᴀɴ ᴅᴏ ᴛʜɪs....😘")
+        await message.reply_text("Oɴʟʏ ɢʀᴏᴜᴘ ᴀᴅᴍɪɴs ᴄᴀɴ ᴅᴏ ᴛʜɪs....😘")
         return
 
     await groups.update_one(
@@ -79,9 +77,10 @@ async def delete_message(_, message):
     group = await groups.find_one({"group_id": chat_id})
     if not group:
         return
-    delete_time = int(group["delete_time"])
+    delete_time = int(group.get("delete_time", 0))
+    if delete_time <= 0:
+        return
     try:
-        # Wait deletion time and delete message, regardless sender admin hai ya nahi
         await asyncio.sleep(delete_time)
         await message.delete()
     except Exception as e:
