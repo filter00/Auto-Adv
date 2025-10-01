@@ -80,7 +80,6 @@ async def set_delete_time(_, message):
 async def delete_message(_, message):
     chat_id = message.chat.id
     user_id = message.from_user.id
-    is_bot = message.from_user.is_bot
     
     # Get the group settings for deletion time
     group = await groups.find_one({"group_id": chat_id})
@@ -89,9 +88,20 @@ async def delete_message(_, message):
     
     delete_time = int(group["delete_time"])
     
+    # Check if the message is from a bot or an admin
+    is_bot = message.from_user.is_bot
+    is_admin = False
+
+    # Check if the user is an admin
+    async for m in bot.get_chat_members(chat_id, filter=enums.ChatMembersFilter.ADMINISTRATORS):
+        if m.user.id == user_id:
+            is_admin = True
+            break
+
     # Delete the message after the specified time for all messages (including bots and admins)
     try:
         await asyncio.sleep(delete_time)
+        # Delete messages from normal users, admins, and bots
         await message.delete()
     except Exception as e:
         print(f"An error occurred: {e}/nGroup ID: {chat_id}")
